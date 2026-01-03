@@ -1,11 +1,12 @@
-# � ML Demo App
+# 🧬 Ứng dụng Clustering dữ liệu biểu hiện Gen
 
-Ứng dụng demo Machine Learning với Streamlit - Đơn giản, Clean & Professional
+Ứng dụng phân cụm dữ liệu gen với Streamlit - K-Means, Agglomerative, Spectral & Ensemble
 
 ## 📝 Mô tả
 
-App demo Linear Regression với giao diện 2 cột responsive:
-- Upload/Load data → Train model → Visualize → Predict
+App clustering với 4 phương pháp unsupervised:
+
+- Upload/Load data → Chọn K & method → Run Clustering → Visualize & Export
 
 ## 🚀 Setup nhanh
 
@@ -34,32 +35,5 @@ pip install -r requirements.txt
 # 4. Chạy
 streamlit run app.py
 ```
-
-## ⚠️ Troubleshooting
-
-```bash
-# Thiếu python3-venv
-sudo apt install python3-venv
-
-# Thiếu pip
-sudo apt install python3-pip
-
-# Port 8501 bị chiếm
-streamlit run app.py --server.port 8502
-```
-
-## 📚 Tài liệu
-
-- `docs/TUTORIAL_VI.md` - Hướng dẫn Streamlit chi tiết
-- `app.py` - Source code với best practices
-
-## 🎯 Mục đích
-
-Project này để:
-- Học Streamlit từ cơ bản đến nâng cao
-- Demo ML app với clean code structure
-- Best practices cho Streamlit development
-
----
 
 **Built with Streamlit** 🚀
