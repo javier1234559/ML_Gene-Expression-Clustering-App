@@ -1,18 +1,18 @@
 # Core Streamlit
-streamlit==1.31.0
+streamlit
 
 # Data Processing
-pandas==2.1.4
-numpy==1.26.3
-openpyxl==3.1.2  # For Excel file support
+pandas
+numpy
+openpyxl
 
 # Machine Learning
-scikit-learn==1.4.0
+scikit-learn
 
 # Visualization
-plotly==5.18.0
-matplotlib==3.8.2
-seaborn==0.13.1
+plotly
+matplotlib
+seaborn
 
 # Additional utilities
-scipy==1.11.4
+scipy
