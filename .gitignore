@@ -41,7 +41,6 @@ ENV/
 Thumbs.db
 
 # Data files (nếu không muốn commit data)
-*.csv
 *.xlsx
 *.xls
 !sample_data.csv  # Trừ file sample
