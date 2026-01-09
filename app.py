@@ -215,6 +215,50 @@ def create_consensus_heatmap(consensus_matrix):
     
     return fig
 
+def create_cluster_summary(labels, K, X):
+    summary = []
+    
+    for k in range(K):
+        mask = labels == k
+        count = np.sum(mask)
+        percentage = (count / len(labels)) * 100
+        
+        cluster_data = X.iloc[mask]
+        mean_values = cluster_data.mean()
+        top_features = mean_values.nlargest(3)
+        
+        summary.append({
+            'cluster': k + 1,
+            'count': count,
+            'percentage': percentage,
+            'top_features': top_features
+        })
+    
+    return summary
+
+def analyze_consensus_matrix(consensus_matrix):
+    n = consensus_matrix.shape[0]
+    upper_indices = np.triu_indices(n, k=1)
+    consensus_values = consensus_matrix[upper_indices]
+    
+    total_pairs = len(consensus_values)
+    strong_agreement = np.sum(consensus_values >= 0.67)
+    weak_agreement = np.sum(consensus_values <= 0.33)
+    mixed_agreement = total_pairs - strong_agreement - weak_agreement
+    
+    avg_consensus = np.mean(consensus_values)
+    
+    return {
+        'total_pairs': total_pairs,
+        'strong_agreement': strong_agreement,
+        'weak_agreement': weak_agreement,
+        'mixed_agreement': mixed_agreement,
+        'avg_consensus': avg_consensus,
+        'strong_pct': (strong_agreement / total_pairs) * 100,
+        'weak_pct': (weak_agreement / total_pairs) * 100,
+        'mixed_pct': (mixed_agreement / total_pairs) * 100
+    }
+
 # ============================================================================
 # UI COMPONENTS
 # ============================================================================
@@ -427,6 +471,89 @@ def render_visualization():
                         with st.expander("Ma trận Consensus", expanded=False):
                             fig_heatmap = create_consensus_heatmap(result['extra_data'])
                             st.plotly_chart(fig_heatmap, use_container_width=True)
+                            
+                            st.divider()
+                            
+                            consensus_analysis = analyze_consensus_matrix(result['extra_data'])
+                            
+                            st.markdown("**Phân tích độ đồng thuận (Consensus Analysis):**")
+                            
+                            st.markdown(f"""
+                            Ma trận Consensus đo lường mức độ đồng ý giữa 3 thuật toán (K-Means, Agglomerative, Spectral) 
+                            khi phân cụm từng cặp mẫu. Giá trị dao động từ 0 (không bao giờ cùng cụm) đến 1 (luôn cùng cụm).
+                            """)
+                            
+                            col1, col2, col3 = st.columns(3)
+                            
+                            with col1:
+                                st.metric("Đồng thuận cao", 
+                                         f"{consensus_analysis['strong_agreement']} cặp",
+                                         f"{consensus_analysis['strong_pct']:.1f}%")
+                                st.caption("≥2/3 thuật toán đồng ý")
+                            
+                            with col2:
+                                st.metric("Đồng thuận trung bình", 
+                                         f"{consensus_analysis['mixed_agreement']} cặp",
+                                         f"{consensus_analysis['mixed_pct']:.1f}%")
+                                st.caption("1/3 < consensus < 2/3")
+                            
+                            with col3:
+                                st.metric("Đồng thuận thấp", 
+                                         f"{consensus_analysis['weak_agreement']} cặp",
+                                         f"{consensus_analysis['weak_pct']:.1f}%")
+                                st.caption("≤1/3 thuật toán đồng ý")
+                            
+                            st.metric("Độ đồng thuận trung bình", f"{consensus_analysis['avg_consensus']:.3f}")
+                            
+                            if consensus_analysis['avg_consensus'] >= 0.6:
+                                st.success("✓ Độ đồng thuận cao → Kết quả Ensemble tin cậy")
+                            elif consensus_analysis['avg_consensus'] >= 0.4:
+                                st.warning("⚠ Độ đồng thuận trung bình → Các thuật toán có ý kiến khác nhau")
+                            else:
+                                st.error("⚠ Độ đồng thuận thấp → Dữ liệu khó phân cụm hoặc K chưa phù hợp")
+                    
+                    # Báo cáo kết quả phân cụm
+                    with st.expander("📊 Báo cáo phân cụm", expanded=True):
+                        summary = create_cluster_summary(result['labels'], result['K'], st.session_state.X)
+                        
+                        st.markdown("**Tổng quan phân cụm:**")
+                        
+                        for s in summary:
+                            st.markdown(f"**Cụm {s['cluster']}**: {s['count']} mẫu ({s['percentage']:.1f}%)")
+                            top_feat_str = ', '.join([f'{k}={v:.2f}' for k, v in s['top_features'].items()])
+                            st.caption(f"Top 3 đặc trưng: {top_feat_str}")
+                        
+                        st.divider()
+                        
+                        largest_cluster = max(summary, key=lambda x: x['count'])
+                        smallest_cluster = min(summary, key=lambda x: x['count'])
+                        
+                        st.markdown("**Nhận xét:**")
+                        st.write(f"• Cụm lớn nhất: **Cụm {largest_cluster['cluster']}** với {largest_cluster['count']} mẫu")
+                        st.write(f"• Cụm nhỏ nhất: **Cụm {smallest_cluster['cluster']}** với {smallest_cluster['count']} mẫu")
+                        
+                        imbalance_ratio = largest_cluster['count'] / smallest_cluster['count']
+                        if imbalance_ratio > 3:
+                            st.write(f"• Phân bố cụm **mất cân bằng** (tỷ lệ {imbalance_ratio:.1f}:1)")
+                        else:
+                            st.write(f"• Phân bố cụm **tương đối cân bằng** (tỷ lệ {imbalance_ratio:.1f}:1)")
+                    
+                    # Data preview with cluster labels
+                    with st.expander("Xem dữ liệu với nhãn cụm", expanded=False):
+                        df_result = pd.DataFrame(st.session_state.X, columns=st.session_state.X.columns)
+                        df_result['Cluster'] = result['labels'] + 1
+                        st.dataframe(df_result, use_container_width=True, height=400)
+                        
+                        # Download button for this specific result
+                        csv = df_result.to_csv(index=False)
+                        st.download_button(
+                            "Tải xuống kết quả này",
+                            csv,
+                            f"{result['method']}_K{result['K']}_{result['timestamp'].replace(':', '-')}.csv",
+                            "text/csv",
+                            key=f"download_{idx}_{result['timestamp']}",
+                            use_container_width=True
+                        )
         else:
             # Single result (no tabs)
             st.subheader("Kết quả Clustering")
@@ -447,6 +574,46 @@ def render_visualization():
                     with st.expander("Ma trận Consensus", expanded=False):
                         fig_heatmap = create_consensus_heatmap(st.session_state.extra_data)
                         st.plotly_chart(fig_heatmap, use_container_width=True)
+                        
+                        st.divider()
+                        
+                        consensus_analysis = analyze_consensus_matrix(st.session_state.extra_data)
+                        
+                        st.markdown("**Phân tích độ đồng thuận (Consensus Analysis):**")
+                        
+                        st.markdown(f"""
+                        Ma trận Consensus đo lường mức độ đồng ý giữa 3 thuật toán (K-Means, Agglomerative, Spectral) 
+                        khi phân cụm từng cặp mẫu. Giá trị dao động từ 0 (không bao giờ cùng cụm) đến 1 (luôn cùng cụm).
+                        """)
+                        
+                        col1a, col1b, col1c = st.columns(3)
+                        
+                        with col1a:
+                            st.metric("Đồng thuận cao", 
+                                     f"{consensus_analysis['strong_agreement']} cặp",
+                                     f"{consensus_analysis['strong_pct']:.1f}%")
+                            st.caption("≥2/3 thuật toán đồng ý")
+                        
+                        with col1b:
+                            st.metric("Đồng thuận trung bình", 
+                                     f"{consensus_analysis['mixed_agreement']} cặp",
+                                     f"{consensus_analysis['mixed_pct']:.1f}%")
+                            st.caption("1/3 < consensus < 2/3")
+                        
+                        with col1c:
+                            st.metric("Đồng thuận thấp", 
+                                     f"{consensus_analysis['weak_agreement']} cặp",
+                                     f"{consensus_analysis['weak_pct']:.1f}%")
+                            st.caption("≤1/3 thuật toán đồng ý")
+                        
+                        st.metric("Độ đồng thuận trung bình", f"{consensus_analysis['avg_consensus']:.3f}")
+                        
+                        if consensus_analysis['avg_consensus'] >= 0.6:
+                            st.success("✓ Độ đồng thuận cao → Kết quả Ensemble tin cậy")
+                        elif consensus_analysis['avg_consensus'] >= 0.4:
+                            st.warning("⚠ Độ đồng thuận trung bình → Các thuật toán có ý kiến khác nhau")
+                        else:
+                            st.error("⚠ Độ đồng thuận thấp → Dữ liệu khó phân cụm hoặc K chưa phù hợp")
             
             with col2:
                 # PCA info - lazy loading để tránh lag
@@ -469,28 +636,56 @@ def render_visualization():
                     st.caption("• Tăng tốc độ thuật toán clustering")
                     st.caption("• Cho phép trực quan hóa 2D (PC1 vs PC2)")
                     st.caption("• Giảm độ phức tạp tính toán")
+            
+            # Báo cáo kết quả phân cụm
+            with st.expander("📊 Báo cáo phân cụm", expanded=True):
+                summary = create_cluster_summary(labels, K, st.session_state.X)
+                
+                st.markdown("**Tổng quan phân cụm:**")
+                
+                for s in summary:
+                    st.markdown(f"**Cụm {s['cluster']}**: {s['count']} mẫu ({s['percentage']:.1f}%)")
+                    top_feat_str = ', '.join([f'{k}={v:.2f}' for k, v in s['top_features'].items()])
+                    st.caption(f"Top 3 đặc trưng: {top_feat_str}")
+                
+                st.divider()
+                
+                largest_cluster = max(summary, key=lambda x: x['count'])
+                smallest_cluster = min(summary, key=lambda x: x['count'])
+                
+                st.markdown("**Nhận xét:**")
+                st.write(f"• Cụm lớn nhất: **Cụm {largest_cluster['cluster']}** với {largest_cluster['count']} mẫu")
+                st.write(f"• Cụm nhỏ nhất: **Cụm {smallest_cluster['cluster']}** với {smallest_cluster['count']} mẫu")
+                
+                imbalance_ratio = largest_cluster['count'] / smallest_cluster['count']
+                if imbalance_ratio > 3:
+                    st.write(f"• Phân bố cụm **mất cân bằng** (tỷ lệ {imbalance_ratio:.1f}:1)")
+                else:
+                    st.write(f"• Phân bố cụm **tương đối cân bằng** (tỷ lệ {imbalance_ratio:.1f}:1)")
+            
+            # Data preview with cluster labels
+            with st.expander("Xem dữ liệu với nhãn cụm", expanded=False):
+                df_result = pd.DataFrame(st.session_state.X, columns=st.session_state.X.columns)
+                df_result['Cluster'] = labels + 1
+                st.dataframe(df_result, use_container_width=True, height=400)
+                
+                # Download button
+                csv = df_result.to_csv(index=False)
+                st.download_button(
+                    "Tải xuống kết quả này",
+                    csv,
+                    f"{method}_K{K}_results.csv",
+                    "text/csv",
+                    use_container_width=True
+                )
     else:
         st.info("Cấu hình các tham số và nhấn 'Chạy Clustering'")
 
 def render_export():
     if st.session_state.get('trained'):
-        st.divider()
-        st.subheader("Xuất kết quả")
-        
-        # Download current result
-        df = st.session_state.data.copy()
-        df['Cluster'] = st.session_state.labels + 1
-        csv = df.to_csv(index=False)
-        st.download_button(
-            "Tải xuống kết quả hiện tại",
-            csv,
-            f"{st.session_state.current_method}_K{st.session_state.K}_results.csv",
-            "text/csv",
-            use_container_width=True
-        )
-        
         # Clear history button
         if len(st.session_state.get('history', [])) > 1:
+            st.divider()
             if st.button("Xóa lịch sử", use_container_width=True):
                 st.session_state.history = [st.session_state.history[-1]]  # Keep last
                 st.rerun()
